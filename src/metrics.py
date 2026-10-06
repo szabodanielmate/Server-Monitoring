@@ -109,8 +109,8 @@ class MetricsCollector:
             "ram_used_gb": virtual_mem.used / (1024**3),
             "ram_total_gb": virtual_mem.total / (1024**3),
             "disks": disks,
-            "net_upload_kbps": bytes_sent_sec / 1024,
-            "net_download_kbps": bytes_recv_sec / 1024,
+            "net_upload_mbps": (bytes_sent_sec * 8) / (1024 * 1024),
+            "net_download_mbps": (bytes_recv_sec * 8) / (1024 * 1024),
         }
 
     def get_docker_metrics(self) -> List[Dict[str, str]]:
