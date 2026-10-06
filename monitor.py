@@ -71,7 +71,7 @@ def generate_layout(metrics: dict, containers: list) -> Layout:
     # Hálózat
     sys_table.add_row(
         "Hálózat (Fel / Le)",
-        f"⬆ {metrics['net_upload_kbps']:.1f} KB/s  |  ⬇ {metrics['net_download_kbps']:.1f} KB/s",
+        f"⬆ {metrics['net_upload_mbps']:.2f} Mb/s  |  ⬇ {metrics['net_download_mbps']:.2f} Mb/s",
         Text("AKTÍV", style="blue")
     )
 
