@@ -8,9 +8,7 @@ def setup_logger() -> logging.Logger:
     logger = logging.getLogger("server_monitor")
     logger.setLevel(logging.INFO)
 
-    # Ha már korábban hozzáadtunk handlert, ne duplázzuk meg a bejegyzéseket
     if not logger.handlers:
-        # Max 5 MB méretű logfájl, legfeljebb 3 archív fájl megtartásával
         file_handler = RotatingFileHandler(
             Config.LOG_FILE_PATH,
             maxBytes=5 * 1024 * 1024,
