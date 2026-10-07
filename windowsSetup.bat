@@ -33,11 +33,10 @@ if not exist ".venv\Scripts\python.exe" (
     echo [OK] .venv virtualis kornyezet mar letezik.
 )
 
-:: 3. Függőségek telepítése
-call .venv\Scripts\activate.bat
+:: 3. Függőségek telepítése közvetlenül a .venv Pythonjával
 echo [*] Pip es Python csomagok ellenorzese...
-python -m pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
+.venv\Scripts\python.exe -m pip install --quiet --upgrade pip
+.venv\Scripts\python.exe -m pip install --quiet -r requirements.txt
 if %errorlevel% neq 0 (
     echo [X] Hiba tortent a fuggosegek telepitese soran!
     pause
@@ -45,15 +44,18 @@ if %errorlevel% neq 0 (
 )
 echo [OK] Minden fuggoseg sikeresen telepitve!
 
-:: 4. .env fájl ellenőrzése
+:: 4. Interaktiv konfigurator inditasa
 if not exist ".env" (
-    if exist ".env.example" (
-        echo [*] .env letrehozasa a .env.example alapjan...
-        copy .env.example .env >nul
-        echo [OK] .env fajl letrehozva.
-    )
+    echo.
+    echo [*] Nincs mentett konfiguracio (.env), varazslo inditasa...
+    echo.
+    .venv\Scripts\python.exe configure.py
 ) else (
-    echo [OK] .env konfiguracio megtalalva.
+    echo [OK] Meglevo .env konfiguracio megtalalva.
+    set /p RECONF="Szeretnéd elindítani a konfigurációs varázslót? [y/N]: "
+    if /i "%RECONF%"=="y" (
+        .venv\Scripts\python.exe configure.py
+    )
 )
 
 echo.
@@ -64,13 +66,13 @@ echo.
 
 :: 5. Azonnali indítás bekérése (Y/N)
 set /p START_NOW="Elinditod most a monitoringot? [Y/n]: "
-if /i "%START_NOW%"=="y" goto run
 if "%START_NOW%"=="" goto run
+if /i "%START_NOW%"=="y" goto run
 goto end
 
 :run
 echo [*] Monitoring inditasa...
-python monitor.py
+.venv\Scripts\python.exe monitor.py
 goto finish
 
 :end

@@ -3,6 +3,8 @@ import time
 import psutil
 from typing import Dict, Any, List
 
+from src.config import Config
+
 try:
     import docker
     DOCKER_AVAILABLE = True
@@ -16,6 +18,9 @@ class MetricsCollector:
         "squashfs", "tmpfs", "devtmpfs", "overlay", "iso9660",
         "nullfs", "autofs", "proc", "sysfs", "devpts"
     }
+
+    # Statikus, kis méretű rendszerkötetek, amiket alapból nem érdemes figyelni
+    IGNORED_MOUNTS = {"/boot", "/boot/efi"}
 
     def __init__(self, enable_docker: bool = False):
         self.enable_docker = enable_docker and DOCKER_AVAILABLE
@@ -33,7 +38,7 @@ class MetricsCollector:
         self._last_net_time = time.time()
 
     def _get_disks_metrics(self) -> List[Dict[str, Any]]:
-        """Automatikusan felderíti az összes valós merevlemezt és partíciót."""
+        """Automatikusan felderíti az összes valós merevlemezt és partíciót, szűrve a konfigurációra."""
         disks = []
         seen_mounts = set()
 
@@ -42,14 +47,29 @@ class MetricsCollector:
         except Exception:
             partitions = []
 
+        # Tisztított, normalizált engedélyezési lista (pl. "c:\" és "C:" összehasonlításhoz)
+        monitored = [m.strip().rstrip("\\/").lower() for m in Config.MONITORED_DISKS]
+
         for p in partitions:
-            # Virtuális fájlrendszerek és snap kötetek szűrése
+            # 1. Virtuális fájlrendszerek és belső snapshotok szűrése
             if p.fstype.lower() in self.IGNORED_FS_TYPES:
                 continue
 
-            # macOS belső rendszer snapshotok szűrése
             if "/System/Volumes/Update" in p.mountpoint or "/System/Volumes/VM" in p.mountpoint:
                 continue
+
+            # 2. Boot partíciók kihagyása (kivéve ha a felhasználó a .env-ben kifejezetten kérte)
+            normalized_mount = p.mountpoint.strip().rstrip("\\/").lower()
+            normalized_device = p.device.strip().rstrip("\\/").lower()
+
+            if not monitored:
+                if p.mountpoint in self.IGNORED_MOUNTS or p.mountpoint.startswith("/boot/"):
+                    continue
+
+            # 3. .env szűrés alkalmazása (ha van beállítva lista a MONITORED_DISKS-ben)
+            if monitored:
+                if normalized_mount not in monitored and normalized_device not in monitored:
+                    continue
 
             # Duplikációk kiszűrése
             if p.mountpoint in seen_mounts:
@@ -72,17 +92,20 @@ class MetricsCollector:
             except (PermissionError, FileNotFoundError):
                 continue
 
-        # Fallback gyökérkönyvtár
-        if not disks:
-            usage = psutil.disk_usage("/")
-            disks.append({
-                "device": "root",
-                "mount": "/",
-                "fstype": "unknown",
-                "percent": usage.percent,
-                "used_gb": usage.used / (1024**3),
-                "total_gb": usage.total / (1024**3),
-            })
+        # Fallback gyökérkönyvtár, ha a szűrés után véletlenül semmi nem maradt volna
+        if not disks and not monitored:
+            try:
+                usage = psutil.disk_usage("/")
+                disks.append({
+                    "device": "root",
+                    "mount": "/",
+                    "fstype": "unknown",
+                    "percent": usage.percent,
+                    "used_gb": usage.used / (1024**3),
+                    "total_gb": usage.total / (1024**3),
+                })
+            except Exception:
+                pass
 
         return disks
 
@@ -95,7 +118,7 @@ class MetricsCollector:
         virtual_mem = psutil.virtual_memory()
         disks = self._get_disks_metrics()
 
-        # Hálózati sebesség számítása (KB/s)
+        # Hálózati sebesség számítása (Megabit/s)
         current_net = psutil.net_io_counters()
         bytes_sent_sec = (current_net.bytes_sent - self._last_net_io.bytes_sent) / elapsed
         bytes_recv_sec = (current_net.bytes_recv - self._last_net_io.bytes_recv) / elapsed
