@@ -24,3 +24,6 @@ class Config:
 
     # ÚJ: Mennyi ideig kell tartania a hibának (másodpercben)
     ALERT_DURATION: int = int(os.getenv("ALERT_DURATION", 30))
+    
+    # Ha üres, mindent figyel, egyébként vesszővel elválasztva tárolja
+    MONITORED_DISKS = [d.strip() for d in os.getenv("MONITORED_DISKS", "").split(",") if d.strip()]

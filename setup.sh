@@ -1,89 +1,64 @@
 #!/usr/bin/env bash
 set -e
 
-# Színek a formázott terminálos visszajelzéshez
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
-echo -e "${CYAN}==========================================${NC}"
-echo -e "${CYAN}  Szerver Monitoring - Függőség Ellenőrző  ${NC}"
-echo -e "${CYAN}==========================================${NC}"
-
-# 1. Python 3 ellenőrzése
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}[!] A Python 3 nem található a rendszeren.${NC}"
-    if [ -f /etc/debian_version ]; then
-        echo -e "${YELLOW}[*] Telepítés apt csomagkezelővel...${NC}"
-        sudo apt update && sudo apt install -y python3
-    else
-        echo -e "${RED}[X] Kérlek, telepítsd a Python 3-at a rendszered csomagkezelőjével!${NC}"
-        exit 1
-    fi
-else
-    echo -e "${GREEN}[✔] Python 3 megtalálva:${NC} $(python3 --version)"
-fi
-
-# 2. python3-venv és ensurepip ellenőrzése (Debian/Ubuntu specifikus)
-echo -e "[*] Venv modul elérhetőségének vizsgálata..."
-if ! python3 -m venv --help &> /dev/null; then
-    echo -e "${YELLOW}[!] A python3-venv modul hiányzik a rendszerről.${NC}"
-    if [ -f /etc/debian_version ]; then
-        echo -e "${YELLOW}[*] Telepítés sudo apt-tal...${NC}"
-        sudo apt update
-        sudo apt install -y python3-venv python3-pip
-        echo -e "${GREEN}[✔] python3-venv sikeresen telepítve!${NC}"
-    else
-        echo -e "${RED}[X] Nem Debian/Ubuntu rendszer, kérlek manuálisan telepítsd a venv modult!${NC}"
-        exit 1
-    fi
-else
-    echo -e "${GREEN}[✔] Python venv támogatás elérhető.${NC}"
-fi
-
-# 3. Virtuális környezet (.venv) vizsgálata
+# Belépés a script saját könyvtárába
 cd "$(dirname "$0")"
 
-if [ ! -d ".venv" ]; then
-    echo -e "${YELLOW}[*] .venv mappa nem létezik. Létrehozás folyamatban...${NC}"
-    python3 -m venv .venv
-    echo -e "${GREEN}[✔] .venv sikeresen létrehozva.${NC}"
-else
-    echo -e "${GREEN}[✔] .venv virtuális környezet már létezik.${NC}"
+echo "=========================================="
+echo "  Szerver Monitoring - Telepítő (Unix)    "
+echo "=========================================="
+
+# 1. Python 3 ellenőrzése
+if ! command -v python3 &>/dev/null; then
+    echo "[X] A python3 nem található a rendszeren!"
+    echo "Kérlek telepítsd a csomagkezelőddel (pl. sudo apt install python3 python3-venv python3-pip)"
+    exit 1
 fi
 
-# 4. Pip és csomagok telepítése / frissítése
-echo -e "[*] Python csomagok ellenőrzése a requirements.txt alapján..."
-./.venv/bin/pip install --quiet --upgrade pip
+PYTHON_BIN="python3"
+echo "[OK] $($PYTHON_BIN --version) elérhető."
+
+# 2. Virtuális környezet (.venv) vizsgálata és létrehozása
+if [ ! -f ".venv/bin/python" ]; then
+    echo "[*] Virtuális környezet létrehozása (.venv)..."
+    $PYTHON_BIN -m venv .venv
+    echo "[OK] .venv sikeresen létrehozva."
+else
+    echo "[OK] A meglévő .venv környezet használata."
+fi
+
+# 3. Függőségek telepítése / frissítése
+echo "[*] Csomagok ellenőrzése és telepítése..."
+./.venv/bin/python -m pip install --quiet --upgrade pip
 ./.venv/bin/pip install --quiet -r requirements.txt
-echo -e "${GREEN}[✔] Minden Python függőség telepítve és naprakész.${NC}"
+echo "[OK] Függőségek sikeresen telepítve!"
 
-# 5. Konfiguráció (.env) ellenőrzése
+# 4. Interaktív konfiguráció futtatása
 if [ ! -f ".env" ]; then
-    if [ -f ".env.example" ]; then
-        echo -e "${YELLOW}[!] .env fájl nem található. Mintafájl (.env.example) másolása...${NC}"
-        cp .env.example .env
-        echo -e "${GREEN}[✔] .env fájl létrehozva alapértelmezett értékekkel.${NC}"
-    else
-        echo -e "${RED}[!] Figyelem: sem .env, sem .env.example nem található!${NC}"
-    fi
+    echo ""
+    echo "[*] Nincs mentett beállítás (.env), interaktív konfigurátor indítása..."
+    echo ""
+    ./.venv/bin/python configure.py
 else
-    echo -e "${GREEN}[✔] .env konfigurációs fájl megtalálva.${NC}"
+    echo "[OK] Létező .env konfiguráció megtalálva."
+    read -r -p "Szeretnéd elindítani a konfigurációs varázslót? [y/N]: " RECONFIG
+    if [[ "$RECONFIG" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        ./.venv/bin/python configure.py
+    fi
 fi
 
-echo -e "\n${GREEN}==========================================${NC}"
-echo -e "${GREEN}  ✓ Minden rendben! All good to go!        ${NC}"
-echo -e "${GREEN}==========================================${NC}\n"
+echo ""
+echo "=========================================="
+echo "  Telepítés kész! Minden készen áll.      "
+echo "=========================================="
+echo ""
 
-# 6. Azonnali indítás bekérése (Y/n)
-read -p "Elindítod most a monitoringot? [Y/n]: " -n 1 -r
-echo # Új sor a lenyomott gomb után
+# 5. Opcionális azonnali indítás
+read -r -p "Elindítod most a monitoringot? [Y/n]: " START_NOW
+START_NOW=${START_NOW:-y}
 
-if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-    echo -e "${CYAN}[*] Monitoring indítása...${NC}\n"
-    exec ./.venv/bin/python monitor.py
+if [[ "$START_NOW" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    exec ./run.sh
 else
-    echo -e "Későbbi indításhoz használd: ${CYAN}./run.sh${NC}\n"
+    echo "Későbbi indításhoz használd: ./run.sh"
 fi
