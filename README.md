@@ -1,5 +1,7 @@
 # 🖥️ Lightweight Cross-Platform Server Monitor
 
+📖 **[Teljes magyar dokumentáció és topológiai ábrák](docs/DOKUMENTACIO.md)** – függőségek, telepítés, konfiguráció, adatáramlás, riasztási logika, üzemeltetés és hibaelhárítás.
+
 Könnyűsúlyú, platformfüggetlen (Linux, macOS, Windows) szerver- és konténermonitorozó eszköz Rich TUI (Text User Interface) felülettel, spike-védelemmel és webhookos riasztásokkal (Discord, Telegram).
 
 ---
@@ -153,6 +155,8 @@ Erre duplán kattintva a monitor láthatatlanul fut a háttérben.
 ---
 
 ## 📋 Naplózási struktúra (`server_monitor.log`)
+
+A `.gitignore` `server_monitor.log*` szabálya az aktív naplót és annak minden archivált vagy tömörített változatát kizárja a Gitből, az almappákban is. A helyi naplófájlok megmaradnak.
 
 A rendszer a forgónaplózás elvét követi:
 - **Fájlméret:** legfeljebb 5 MB fájlonként, maximum 3 biztonsági mentéssel (`server_monitor.log.1`, stb.).

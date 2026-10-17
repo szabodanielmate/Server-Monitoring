@@ -76,7 +76,7 @@ echo [*] Monitoring inditasa...
 goto finish
 
 :end
-echo Kesobbi inditashoz hasznald a run.bat fajlt!
+echo Kesobbi inditashoz hasznald a windowsRun.bat fajlt!
 pause
 
 :finish

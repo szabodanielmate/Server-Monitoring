@@ -5,7 +5,7 @@ cd /d "%~dp0"
 :: Ha még nincs felépítve a környezet, hívjuk meg a setupot
 if not exist ".venv\Scripts\python.exe" (
     echo [!] A kornyezet nincs telepitve. Setup inditasa...
-    call setup.bat
+    call windowsSetup.bat
     exit /b
 )
 
