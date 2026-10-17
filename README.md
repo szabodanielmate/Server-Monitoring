@@ -1,6 +1,6 @@
 # 🖥️ Lightweight Cross-Platform Server Monitor
 
-📖 **[Teljes magyar dokumentáció és topológiai ábrák](docs/DOKUMENTACIO.md)** – függőségek, telepítés, konfiguráció, adatáramlás, riasztási logika, üzemeltetés és hibaelhárítás.
+📖 **[Teljes magyar dokumentáció és topológiai ábrák](docs/DOKUMENTACIO.md)** – függőségek, telepítés, konfiguráció, adatáramlás, riasztási logika és üzemeltetés.
 
 Könnyűsúlyú, platformfüggetlen (Linux, macOS, Windows) szerver- és konténermonitorozó eszköz Rich TUI (Text User Interface) felülettel, spike-védelemmel és webhookos riasztásokkal (Discord, Telegram).
 

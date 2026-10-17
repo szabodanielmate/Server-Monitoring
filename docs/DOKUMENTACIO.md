@@ -1,6 +1,6 @@
 # Server Monitoring – teljes dokumentáció
 
-A dokumentáció a projekt 2026. október 17-én átvizsgált forráskódját írja le. A példákban szereplő alapértékek a jelenlegi implementációra vonatkoznak. Az ábrák Mermaid formátumúak; megjelenítésükhöz Mermaid-támogatású Markdown-nézet szükséges, például a GitHub fájlnézete.
+A Server Monitoring Python-alapú szerverfigyelő alkalmazás. Ez a dokumentáció bemutatja a felépítését, függőségeit, telepítését, konfigurációját és működését. Az ábrák Mermaid formátumúak; megjelenítésükhöz Mermaid-támogatású Markdown-nézet használható, például a GitHub fájlnézete.
 
 ## Tartalom
 
@@ -13,8 +13,8 @@ A dokumentáció a projekt 2026. október 17-én átvizsgált forráskódját í
 7. [Adatgyűjtés és megjelenítés](#7-adatgyűjtés-és-megjelenítés)
 8. [Riasztások](#8-riasztások)
 9. [Naplózás és tárolás](#9-naplózás-és-tárolás)
-10. [Üzemeltetés és hibaelhárítás](#10-üzemeltetés-és-hibaelhárítás)
-11. [Fejlesztői áttekintés és korlátok](#11-fejlesztői-áttekintés-és-korlátok)
+10. [Üzemeltetés](#10-üzemeltetés)
+11. [Fejlesztői áttekintés](#11-fejlesztői-áttekintés)
 
 ## 1. Rendeltetés
 
@@ -28,14 +28,14 @@ A program egy helyi gép erőforrásait figyeli, teljes képernyős terminálfel
 | Összesített hálózati sebesség | Igen | Nincs |
 | Docker-konténerek állapota és healthcheckje | Igen, opcionálisan | Nincs |
 
-A program nem végez automatikus hibajavítást, konténer-újraindítást vagy lemeztakarítást. Nincs webes felület, bejövő HTTP-szolgáltatás, idősoros adatbázis vagy több gépet összesítő központi komponens. A rendszeradatokat azon a gépen méri, ahol a Python-folyamat fut; konténerbe telepítés esetén a futtatási környezet korlátozhatja a látható adatokat.
+Az alkalmazás a Python-folyamatot futtató gép rendszeradatait gyűjti. Működésének három fő része az erőforrások mérése, az aktuális állapot megjelenítése és a tartós küszöbérték-túllépések jelzése.
 
 ## 2. Rendszerkövetelmények és függőségek
 
 ### Futtatási környezet
 
-- A projekt README-je Python **3.10+** verziót jelöl meg. A telepítők csak a Python elérhetőségét ellenőrzik, a verziókövetelményt külön nem validálják.
-- Célplatformok: Linux, macOS és Windows. A platformfüggetlen tervezés nem jelent minden platformon elvégzett futtatási tesztet.
+- Python **3.10+** futtatókörnyezet szükséges.
+- Célplatformok: Linux, macOS és Windows.
 - Python `venv` és `pip` szükséges a telepítőkhöz. Unix rendszereken Bash, Windowson a `.bat` fájlokhoz parancsértelmező szükséges.
 - Írási jog szükséges a projektkönyvtárhoz a virtuális környezet, a konfiguráció és a napló létrehozásához.
 - A csomagok letöltéséhez hálózat szükséges. Futás közben külső hálózati kapcsolatot az engedélyezett értesítési csatornák igényelnek.
@@ -43,7 +43,7 @@ A program nem végez automatikus hibajavítást, konténer-újraindítást vagy 
 
 ### Közvetlen Python-függőségek
 
-Az alábbi verziófeltételek a projekt `requirements.txt` fájljából származnak, nem a gépen telepített verziókat jelölik.
+Az alábbi táblázat a `requirements.txt` fájlban meghatározott minimális csomagverziókat és azok szerepét mutatja.
 
 | Csomag | Deklarált verzió | Szerep | Használó modul |
 | --- | --- | --- | --- |
@@ -53,11 +53,11 @@ Az alábbi verziófeltételek a projekt `requirements.txt` fájljából származ
 | `python-dotenv` | `>=1.0.0` | `.env` betöltése környezeti változókká | `src/config.py` |
 | `docker` | `>=7.0.0` | Python Docker SDK, kapcsolat és konténeradatok | `src/metrics.py` |
 
-A Docker Python-csomagot a telepítő akkor is telepíti, ha a Docker-monitorozás ki van kapcsolva. Kézi telepítésnél a program kezeli a `docker` import hiányát, de a többi közvetlen függőség szükséges az induláshoz.
+A telepítő a `requirements.txt` valamennyi csomagját telepíti. A Docker-monitorozás használatát az `ENABLE_DOCKER` beállítás szabályozza.
 
 A standard könyvtári `os`, `sys`, `time`, `socket`, `pathlib`, `typing` és `logging` modulokat nem kell külön telepíteni.
 
-A közvetett függőségeket a pip oldja fel. Nincs rögzített verziókat tartalmazó lockfájl vagy felső verziókorlát, ezért két külön időpontban végzett telepítés eltérő csomagverziókat eredményezhet. Az adott telepítés ellenőrzése Unix alatt:
+A közvetett függőségeket a pip oldja fel a megadott verziófeltételek alapján. A telepített csomagok listája és függőségeik ellenőrzése Unix alatt:
 
 ```bash
 ./.venv/bin/python -m pip list
@@ -83,7 +83,7 @@ Windows PowerShellben:
 | `src/__init__.py` | Python-csomagjelölő |
 | `configure.py` | Küszöbök, partíciók, Docker és értesítések interaktív beállítása |
 | `.env.example` | Másolható konfigurációs sablon |
-| `.env` | Helyi beállítások és opcionális értesítési hitelesítő adatok; futás során létrehozandó |
+| `.env` | Helyi beállítások és opcionális értesítési hitelesítő adatok |
 | `requirements.txt` | Közvetlen Python-függőségek |
 | `setup.sh`, `windowsSetup.bat` | Környezet telepítése, konfigurálás és opcionális azonnali indítás |
 | `run.sh`, `windowsRun.bat` | A monitor indítása a virtuális környezetből |
@@ -133,7 +133,7 @@ flowchart TD
     START -->|Nem| END["Később run.sh / windowsRun.bat"]
 ```
 
-Az ábra a telepítők szándékolt menetét mutatja. A Windows újrakonfigurálási kérdésének ismert változókiértékelési hibáját a hibaelhárítás rész ismerteti.
+A telepítési folyamat a Python-környezet előkészítését, a függőségek telepítését és a konfiguráció létrehozását foglalja össze.
 
 ### Futási ciklus
 
@@ -153,7 +153,7 @@ flowchart TD
     UI -. "Ctrl+C a fő ciklusban" .-> STOP["Leállási napló, kilépés"]
 ```
 
-A lépések sorban futnak. A tényleges mintaköz a beállított várakozásból és az adatgyűjtés, értesítésküldés, illetve megjelenítés idejéből áll. Az alapértelmezett 3 másodperc ezért nem garantált pontos mintavételi periódus.
+A lépések sorban futnak. Egy mérési ciklus idejét az adatgyűjtés, az értesítésküldés, a megjelenítés és a `CHECK_INTERVAL` által meghatározott várakozás együtt adja.
 
 ## 5. Telepítés és indítás
 
@@ -173,7 +173,7 @@ A telepítő létrehozza a `.venv` környezetet, telepíti a csomagokat, majd sz
 ./run.sh
 ```
 
-A Unix-indító hiányzó Python-környezet vagy `.env` esetén meghívja a telepítőt, majd annak visszatérése után maga is elindítja a monitort. Ha a beágyazott telepítő már elindított egy monitort, annak leállása után az indító újra elindíthatja azt. Az első telepítést ezért közvetlenül a `setup.sh` futtatásával érdemes végezni.
+Az első telepítés belépési pontja a `setup.sh`, a későbbi indításoké a `run.sh`. Az indító a projekt `.venv` környezetében futtatja a monitort.
 
 ### Windows
 
@@ -190,7 +190,7 @@ Későbbi indítás:
 .\windowsRun.bat
 ```
 
-A Windows-indító hiányzó virtuális környezet esetén a `windowsSetup.bat` fájlt hívja, majd kilép; ebben az ágban az indulás a telepítőben adott választól függ. Meglévő környezet esetén aktiválja azt, és futtatja a `monitor.py` fájlt. A `.env` meglétét a Windows-indító nem ellenőrzi.
+A Windows-indító a projekt virtuális környezetét aktiválja, majd futtatja a `monitor.py` fájlt. A virtuális környezet előkészítéséhez a `windowsSetup.bat` telepítőt használja.
 
 ### Kézi telepítés, varázsló nélkül
 
@@ -216,7 +216,7 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe monitor.py
 ```
 
-Leállítás: **Ctrl+C**. A fő ciklus ezt naplózza és 0-s kilépési kóddal zárul. Az indítás előtti konfigurációs vagy importhibákra ez a kezelés nem terjed ki.
+Leállítás: **Ctrl+C**. A fő ciklus ezt naplózza és 0-s kilépési kóddal zárul.
 
 ## 6. Konfiguráció
 
@@ -236,7 +236,7 @@ A `src/config.py` a projektgyökérben lévő `.env` fájlt tölti be. A már me
 | `TELEGRAM_BOT_TOKEN` | Üres | Telegram bot tokenje |
 | `TELEGRAM_CHAT_ID` | Üres | Célbeszélgetés azonosítója; Telegramhoz a token és az ID egyaránt szükséges |
 
-**Docker-alapérték eltérés:** a kód hiányzó beállítás esetén kikapcsolja a Docker-funkciót, de a `.env.example` `true` értéket tartalmaz, és a konfigurátor is alapból felajánlja a bekapcsolást.
+A `.env.example` sablonban a Docker-monitorozás engedélyezett (`true`), és a konfigurátor alapválasza is a bekapcsolás. Ha az `ENABLE_DOCKER` változó nincs megadva, a `Config` osztály `false` értéket használ.
 
 Minimális, külső értesítések nélküli példa:
 
@@ -268,11 +268,11 @@ MONITORED_DISKS=C:,D:
 
 ### A konfigurátor viselkedése
 
-A `configure.py` bekéri a CPU-, RAM- és lemezküszöböt, megjeleníti a talált partíciókat, majd rákérdez a Dockerre és külön-külön az értesítési csatornákra. Az időzítéseket nem kérdezi meg: mindig `3`, `30`, `300` értékkel írja ki őket.
+A `configure.py` bekéri a CPU-, RAM- és lemezküszöböt, megjeleníti a talált partíciókat, majd rákérdez a Dockerre és külön-külön az értesítési csatornákra. A mentett időzítések alapértéke `3`, `30` és `300` másodperc; ezek a `.env` fájlban szerkeszthetők.
 
-Az `all` választás az éppen felderített partíciók konkrét listáját menti. Új lemezek későbbi automatikus felvételéhez hagyd üresen a `MONITORED_DISKS` értékét. A konfigurátor szűrése nem teljesen azonos a futás közbeni szűréssel.
+Az `all` választás az éppen felderített partíciók konkrét listáját menti. Az üres `MONITORED_DISKS` érték futás közbeni automatikus partíciófelderítést választ.
 
-Újrafuttatáskor a konfigurátor felülírja a `.env` fájlt, és nem tölti vissza a korábbi értékeket alapválaszként. Közvetlenül futtatva az aktuális munkakönyvtárba ment, ezért a projektgyökérből indítsd:
+A konfigurátor az alapértékekből és a megadott válaszokból új `.env` fájlt ír az aktuális munkakönyvtárba, felülírva az ott lévő korábbi konfigurációt. Közvetlen indítása a projektgyökérből:
 
 ```bash
 ./.venv/bin/python configure.py
@@ -282,13 +282,13 @@ Az `all` választás az éppen felderített partíciók konkrét listáját ment
 .\.venv\Scripts\python.exe configure.py
 ```
 
-A numerikus bevitelhez nincs tartományellenőrzés. Százalékos értékhez pontot használj, például `85.5`. Hibás szöveg vagy tizedes időzítés importkori hibát okozhat. Használj 0–100 közötti küszöböket, pozitív mintaközt és nem negatív riasztási időket; ezt jelenleg az üzemeltetőnek kell biztosítania.
+A százalékos küszöbök 0–100 közötti számok, tizedes értéknél ponttal írva, például `85.5`. A `CHECK_INTERVAL` pozitív egész szám, az `ALERT_DURATION` és az `ALERT_COOLDOWN` nem negatív egész szám, másodpercben megadva.
 
 ## 7. Adatgyűjtés és megjelenítés
 
 ### CPU és memória
 
-A CPU összesített terhelését a `psutil.cpu_percent(interval=None)` adja. Az első minta még nem feltétlenül reprezentatív. A RAM adatai a `psutil.virtual_memory()` eredményéből érkeznek. A kijelzett használt és teljes memória `1024³` bájttal osztott érték, tehát a felület `GB` felirata alatt valójában GiB szerepel.
+A CPU összesített terhelését a `psutil.cpu_percent(interval=None)` adja, a RAM adatai a `psutil.virtual_memory()` eredményéből érkeznek. A memória használt és teljes mérete `1024³` bájtos egységekben (GiB) számolódik. A felület ezeket a `GB` feliratú mezőkben jeleníti meg.
 
 ### Lemezek
 
@@ -300,9 +300,9 @@ A felderítés alapja a `psutil.disk_partitions(all=False)`. A program:
 4. Ha van `MONITORED_DISKS`, csatolási pont vagy eszköznév alapján szűr. Az összehasonlítás kisbetűsítve, a záró perjelek eltávolításával történik.
 5. Csatolási pont alapján kiszűri az ismétlődéseket, és kihagyja a nulla méretű köteteket.
 
-A boot-kötetek explicit kiválaszthatók, de a fájlrendszer- és macOS-kizárások ettől még érvényben maradnak. Ha automatikus módban nincs eredmény, a program megpróbálja a `/` lemezhasználatát lekérni. Explicit lista esetén nincs ilyen helyettesítés: hibás lista mellett üres lehet a lemeztábla és elmarad a lemezriasztás.
+A boot-kötetek a `MONITORED_DISKS` listában explicit kiválaszthatók; a fájlrendszer- és macOS-szűrések minden esetben érvényesek. Automatikus módban a program a `/` lemezhasználatát is megpróbálja lekérni, ha a partíciófelderítés üres eredményt ad. Explicit lista esetén a kiválasztott köteteket jeleníti meg.
 
-A kapacitások itt is GiB-ben számolódnak, `GB` felirattal. A lemezmérés telítettséget jelent, nem I/O-sebességet vagy hardveres állapotvizsgálatot.
+A lemezmérés a kötetek telítettségét, használt és teljes kapacitását mutatja. A kapacitásértékek `1024³` bájtos egységekben számolódnak, a felületen `GB` felirattal.
 
 ### Hálózat
 
@@ -313,15 +313,13 @@ bájt/másodperc = (aktuális számláló − előző számláló) / eltelt más
 kijelzett érték = bájt/másodperc × 8 / 1024²
 ```
 
-A felirat `Mb/s`, de a számítás bináris Mibit/s-nak felel meg, nem a decimális, 1 000 000 bittel számoló Mbit/s-nak. Ez az aktuális összesített forgalom becslése, nem internetes sebességteszt. Az `AKTÍV` jelzés állandó felirata ennek a sornak, nem internetelérési vizsgálat eredménye.
+A hálózati sor a két mérés között számított összesített fel- és letöltési sebességet mutatja. A számítás bináris Mibit/s egységet használ; a felületen `Mb/s` felirat szerepel. A sor állandó státuszfelirata `AKTÍV`.
 
 ### Docker
 
 Inicializáláskor a gyűjtő megpróbál kapcsolódni, és `ping()` hívással ellenőrzi a kapcsolatot. Minden ciklusban `containers.list(all=True)` történik, így a leállított konténerek is szerepelnek.
 
-A megjelenített adatok: konténernév, állapot, healthcheck státusz és az első image-tag. Tag hiányában `unknown`, healthcheck hiányában `-` jelenik meg. A program a Docker által már előállított healthcheck eredményét olvassa, saját ellenőrző parancsot nem futtat.
-
-Induláskori kapcsolódási hiba után nincs új klienslétrehozási kísérlet; a monitor újraindítása szükséges. Lekérdezési hibánál üres vagy részleges lista is visszatérhet, külön hibajelzés nélkül.
+A megjelenített adatok: konténernév, állapot, healthcheck státusz és az első image-tag. Tag hiányában `unknown`, healthcheck hiányában `-` jelenik meg. A healthcheck-adatok a Docker által előállított állapotból származnak.
 
 ### Felület és állapotjelzések
 
@@ -333,7 +331,7 @@ Induláskori kapcsolódási hiba után nincs új klienslétrehozási kísérlet;
 
 85%-os CPU-küszöbnél a sárga jelzés 68%-tól, a piros 85%-tól látható. A szín azonnal változik; a külső riasztásra külön időzítés vonatkozik.
 
-A Rich felület másodpercenként két újrarajzolásra van beállítva, ez nem jelent másodpercenként két új mérést. A fejléc időbélyege az utolsó felületgenerálás ideje. Docker engedélyezésekor a fő nézet két oszlopra oszlik.
+A Rich felület másodpercenként két újrarajzolásra van beállítva, a mérési adatok a fő ciklus ütemében frissülnek. A fejléc időbélyege az utolsó felületgenerálás ideje. Docker engedélyezésekor a fő nézet két oszlopra oszlik.
 
 ## 8. Riasztások
 
@@ -370,16 +368,15 @@ Alapértékekkel, ideális 3 másodperces mintaközzel:
 | 330 mp | Továbbra is legalább 85% | Ismételt riasztási kísérlet |
 | Következő, 85% alatti minta | 60% | Hibaperiódus lezárása |
 
-A „folyamatos” túlterhelés az egymást követő mintákra vonatkozik. A két minta közötti rövid visszaeséseket a program nem feltétlenül látja.
+A folyamatos túlterhelés értékelése egymást követő minták alapján történik: a riasztási időzítő addig fut, amíg a mért értékek elérik vagy meghaladják a küszöböt.
 
 ### Fontos időzítési részletek
 
-- Új hibaperiódus első riasztását a korábbi hibaperiódus cooldownja nem korlátozza. Normál minta után az `alerted_states` törlődik, bár a legutóbbi riasztási idő megmarad.
-- Az első magas minta csak időzítőt indít, ezért `ALERT_DURATION=0` mellett is egy következő magas minta szükséges a riasztáshoz.
-- Újraindításkor minden időzítő és állapot elveszik.
-- Nincs helyreállási értesítés, automatikus hibajavítás vagy csatornánkénti újraküldési sor.
-- Sikertelen küldés és beállított csatorna hiánya esetén is riasztottnak jelöli az állapotot, és érvényesíti az ismétlési időt.
-- Az időzítés `time.time()` alapján működik; a rendszeróra módosítása befolyásolhatja.
+- Normál tartományba visszatérő mintánál a túlterhelés kezdőideje és az `alerted_states` bejegyzés törlődik. A következő túlterhelési időszak saját időzítéssel indul.
+- Az első magas minta rögzíti a kezdőidőt. A következő magas mintáknál a program ellenőrzi az eltelt időt.
+- Az időzítők a folyamat memóriájában élnek, és minden programindításkor inicializálódnak.
+- Az ismétlési idő a riasztási folyamat meghívásai között érvényesül, metrikánként.
+- Az eltelt idő számításának alapja a `time.time()` által visszaadott időbélyeg.
 
 ### Értesítési csatornák
 
@@ -390,9 +387,9 @@ Az üzenet tartalmazza a helyi gép nevét, a metrika nevét, a jelenlegi érté
 | Discord | A megadott webhook URL-re küldött POST, `content` JSON-mezővel | `200`, `204` |
 | Telegram | POST a `https://api.telegram.org/bot<TOKEN>/sendMessage` címre, `chat_id`, `text`, `parse_mode` mezőkkel | `200` |
 
-Mindkét csatorna külön `httpx.Client(timeout=5.0)` klienst használ. A kérések egymás után, a fő mérési ciklusban futnak; a lassú küldés késlelteti a következő mérést. Az 5 másodperc HTTPX-időtúllépési beállítás, nem az egész ciklus garantált felső időkorlátja.
+Mindkét csatorna külön `httpx.Client(timeout=5.0)` klienst használ. A kérések egymás után, a fő mérési ciklusban futnak. Az HTTP-műveletekhez beállított időtúllépés 5 másodperc.
 
-A Telegram régi `Markdown` módot kap. A program a dupla csillagokat szimplára cseréli, de a dinamikus mezők speciális karaktereit nem escape-eli teljeskörűen, ezért egyes gép- vagy metrikanevek formázási hibát okozhatnak.
+A Telegram-üzenet `Markdown` formázással készül. A program a Discord-üzenet dupla csillagait a Telegram formátumának megfelelő szimpla csillagokra cseréli.
 
 ## 9. Naplózás és tárolás
 
@@ -411,11 +408,11 @@ server_monitor.log.3
 | `WARNING` | Riasztás létrehozása |
 | `ERROR` | Kezelt HTTP-hibák és értesítésküldési kivételek |
 
-A „Riasztás kiküldve” bejegyzés **a hálózati küldés előtt** keletkezik, így nem igazolja a kézbesítést. A program nem naplóz minden mért értéket, a Docker-hibákat pedig több helyen elnyeli.
+A riasztási naplóbejegyzés a riasztási folyamat indításakor keletkezik. A napló az indulási, leállási, küszöbátlépési és értesítésküldési eseményeket rögzíti.
 
-A `.env` tokeneket és webhook címet tartalmazhat. A fájl szerepel a `.gitignore` listában. A konfigurátor ezeket az értékeket nem maszkolt bevitellel kéri be. A küldési kivételek szövege URL-t, így akár érzékeny adatot is tartalmazhat; megosztás előtt ellenőrizd a naplót. A `.gitignore` `server_monitor.log*` szabálya az aktív naplót és minden ilyen nevű archív vagy tömörített változatot (például `server_monitor.log.1`, `server_monitor.log.3.gz`) kizár a projekt minden almappájában is. A `.DS_Store` fájlok szintén minden almappában kizártak.
+A `.env` az értesítési csatornák tokenjeit és webhook címét is tárolhatja, ezért helyi konfigurációként szerepel a `.gitignore` listában. A `server_monitor.log*` szabály az aktív naplót és minden ilyen nevű archív vagy tömörített változatot (például `server_monitor.log.1`, `server_monitor.log.3.gz`) kizár a projekt minden almappájában is. A `.DS_Store` fájlok szintén minden almappában kizártak.
 
-## 10. Üzemeltetés és hibaelhárítás
+## 10. Üzemeltetés
 
 ### Háttérben tartás
 
@@ -432,25 +429,7 @@ Leválás: `Ctrl+B`, majd `D`. Visszatérés:
 tmux attach -t monitor
 ```
 
-A `tmux` opcionális rendszerprogram, nem Python-függőség. Nincs mellékelt systemd-unit, Windows-szolgáltatás, automatikus rendszerindítás vagy külön headless mód. A README-ben szereplő VBS-példa az ablakot rejti el; szolgáltatásfelügyeletet és automatikus újraindítást nem biztosít.
-
-### Gyakori hibák
-
-| Tünet | Lehetséges ok és teendő |
-| --- | --- |
-| `python` vagy `python3` nem található | Ellenőrizd a Python telepítését és a PATH-ot. |
-| `No module named ...` | A megfelelő `.venv` Pythonjával telepítsd a `requirements.txt` csomagjait. |
-| `ValueError` induláskor | Ellenőrizd a `.env` és a külső környezeti változók számait; százalékhoz pont, időzítéshez egész szám kell. |
-| Negatív várakozási idő miatti leállás | Állíts pozitív `CHECK_INTERVAL` értéket. |
-| Nem változik a beállítás | Indítsd újra a monitort; ellenőrizd, nem írja-e felül külső környezeti változó a `.env`-et. |
-| Nem jelenik meg lemez | Ellenőrizd a csatolási pontot, a `MONITORED_DISKS` listát és a kizárt fájlrendszereket. |
-| Üres a Docker-tábla | Lehet üres lista, hiányzó Docker SDK, API-hozzáférési vagy kapcsolódási hiba; a felület nem különbözteti meg ezeket. |
-| Docker elindítása után is üres a lista | Ha a monitor indulásakor nem volt kapcsolat, indítsd újra a monitort. |
-| Piros státusz mellett nincs üzenet | Várd meg az `ALERT_DURATION` idejét; ellenőrizd a csatornabeállításokat, a cooldown állapotát és a napló hibáit. |
-| A napló küldést jelez, üzenet mégsem érkezik | A bejegyzés nem kézbesítési igazolás; keresd az utána következő HTTP- vagy hálózati hibát. |
-| Telegram HTTP 400 | Ellenőrizd a célazonosítót és a Markdownban problémás gép-/metrikaneveket. |
-| A felület időnként megakad | A rendszer-, Docker- és HTTP-hívások a fő ciklust blokkolhatják. |
-| Windows alatt az újrakonfigurálási válasz hatástalan | A `RECONF` változó ugyanabban a zárójeles blokkban `%RECONF%` alakban olvasódik ki, ahol beállítják. Futtasd közvetlenül a `.venv\Scripts\python.exe configure.py` parancsot. |
+A `tmux` opcionális rendszerprogram, a terminálmunkamenet fenntartására szolgál. A README-ben szereplő Windows VBS-példa a konzolablak elrejtésével indítja az alkalmazást.
 
 ### Ellenőrzés telepítés után
 
@@ -460,7 +439,7 @@ A `tmux` opcionális rendszerprogram, nem Python-függőség. Nincs mellékelt s
 4. Ellenőrizd a `server_monitor.log` indulási bejegyzését.
 5. Ha értesítést is tesztelsz, erre kijelölt csatornát használj. A CPU-küszöb ideiglenes `0` értéke riasztást válthat ki terhelésgenerálás nélkül; utána állítsd vissza az értéket és indítsd újra a programot. Ez a teszt tényleges üzeneteket küldhet.
 
-## 11. Fejlesztői áttekintés és korlátok
+## 11. Fejlesztői áttekintés
 
 ### Belső interfészek
 
@@ -475,19 +454,6 @@ A `tmux` opcionális rendszerprogram, nem Python-függőség. Nincs mellékelt s
 | `AlertNotifier.check_metric(name, value, threshold)` | Küszöbellenőrzés, állapotkezelés, szükség esetén küldés |
 | `setup_logger()` | Közös logger visszaadása; csak meglévő handler hiányában ad új fájlkezelőt |
 
-Az `AlertNotifier` három memóriabeli szótárat használ: `breach_start_times`, `last_alert_times`, `alerted_states`. Nincs lemezre mentett riasztási állapot. Ha egy korábban figyelt lemez eltűnik a mért listából, a régi állapotát nem takarítja ki külön a program.
+Az `AlertNotifier` három memóriabeli szótárat használ: a `breach_start_times` a túlterhelések kezdetét, a `last_alert_times` a legutóbbi riasztások időpontját, az `alerted_states` pedig az adott túlterhelési időszak riasztási állapotát tartja nyilván.
 
-A `monitor.py` már importáláskor létrehozza a naplózót, a gyűjtőt és a riasztáskezelőt. Emiatt puszta importja is naplófájl-létrehozást és engedélyezett Docker mellett kapcsolódási kísérletet okozhat. A fő ciklus csak a közvetlen indításkor lép életbe.
-
-### A jelenlegi verzió határai
-
-- Nincs automatikus tesztcsomag a vizsgált projektfájlok között.
-- Nincs konfigurációs séma, teljes validáció vagy futás közbeni újratöltés.
-- Nincs általános hibakezelés a fő ciklus körül a `KeyboardInterrupt` kivételén túl; nem kezelt gyűjtési hiba leállíthatja a folyamatot.
-- Nincs HTTP-újrapróbálkozás, csatornánkénti kézbesítési állapot vagy helyreállási üzenet.
-- A Docker-kapcsolat hibái nem kapnak egyértelmű naplózást vagy felületi állapotot.
-- A hálózat és a Docker csak megjelenítési funkció; konténerenkénti CPU-/RAM-adatok sincsenek.
-- A Windows-telepítő zárójeles blokkban használt `%errorlevel%` ellenőrzése is korábban kiértékelt értéket láthat a virtuális környezet létrehozásakor.
-- Az indítók továbbadják a parancssori argumentumokat, de a `monitor.py` nem definiál parancssori kapcsolókat.
-
-Ez a dokumentum forráskód-alapú leírás; elkészítése nem jelent Windows/Linux futtatási, valódi webhook-kézbesítési vagy teljes platformkompatibilitási tesztet.
+A `monitor.py` modul betöltésekor létrejön a naplózó, az adatgyűjtő és a riasztáskezelő. Az adatgyűjtő inicializálása beállítja a hálózati számlálókat, és engedélyezett Docker-monitorozásnál létrehozza a Docker-kapcsolatot. A fő ciklus a program közvetlen indításakor lép életbe.
